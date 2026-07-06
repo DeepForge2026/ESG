@@ -8,7 +8,7 @@ export default {
     const cors = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Headers": "Content-Type, X-Auth-Token",
     };
 
     // Pré-flight CORS
@@ -16,13 +16,20 @@ export default {
       return new Response(null, { headers: cors });
     }
 
-    // Rota: análise ESG
-    if (url.pathname === "/api/analise" && request.method === "POST") {
-      return handleAnalise(request, env, cors);
+    // Rota: login — confere a senha e devolve um token
+    if (url.pathname === "/api/login" && request.method === "POST") {
+      return handleLogin(request, env, cors);
     }
 
-    // Rota: relatório
+    // Rotas protegidas: exigem token válido
+    if (url.pathname === "/api/analise" && request.method === "POST") {
+      const auth = await checarAuth(request, env);
+      if (!auth) return json({ error: "Não autorizado. Faça login." }, 401, cors);
+      return handleAnalise(request, env, cors);
+    }
     if (url.pathname === "/api/relatorio" && request.method === "POST") {
+      const auth = await checarAuth(request, env);
+      if (!auth) return json({ error: "Não autorizado. Faça login." }, 401, cors);
       return handleRelatorio(request, env, cors);
     }
 
@@ -30,6 +37,36 @@ export default {
     return env.ASSETS.fetch(request);
   },
 };
+
+// ─── AUTENTICAÇÃO ────────────────────────────────────────────────────────────
+// Gera um token derivado da senha (HMAC-like via SHA-256). Só quem sabe a senha
+// consegue produzir o token correto, e a senha nunca trafega após o login.
+async function tokenDaSenha(senha) {
+  const enc = new TextEncoder();
+  const data = enc.encode("deepforge-esg::" + senha);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function handleLogin(request, env, cors) {
+  if (!env.APP_PASSWORD) return json({ error: "Senha de acesso não configurada no servidor." }, 500, cors);
+  let body;
+  try { body = await request.json(); }
+  catch { return json({ error: "Corpo inválido." }, 400, cors); }
+  const senha = (body.senha || "").trim();
+  if (senha && senha === env.APP_PASSWORD) {
+    const token = await tokenDaSenha(env.APP_PASSWORD);
+    return json({ ok: true, token }, 200, cors);
+  }
+  return json({ error: "Senha incorreta." }, 401, cors);
+}
+
+async function checarAuth(request, env) {
+  if (!env.APP_PASSWORD) return false;
+  const token = request.headers.get("X-Auth-Token") || "";
+  const esperado = await tokenDaSenha(env.APP_PASSWORD);
+  return token === esperado;
+}
 
 function json(obj, status, cors) {
   return new Response(JSON.stringify(obj), {

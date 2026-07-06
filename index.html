@@ -216,13 +216,32 @@ function setView(v) { STATE.view=v; render(); }
 // ═══════════════════════════════════════════════════════════════════════════
 // CHAMADA DE IA — usa tool_use para JSON garantido
 // ═══════════════════════════════════════════════════════════════════════════
-async function analisarComIA(d) {
-  // Chama o backend (Pages Function) — a chave da API fica protegida no servidor
-  const res = await fetch("/api/analise", {
+// ─── AUTENTICAÇÃO ────────────────────────────────────────────────────────────
+const AUTH = {
+  getToken() { try { return sessionStorage.getItem("deepforge_token") || ""; } catch { return ""; } },
+  setToken(t) { try { sessionStorage.setItem("deepforge_token", t); } catch {} },
+  clear() { try { sessionStorage.removeItem("deepforge_token"); } catch {} },
+};
+
+async function fazerLogin(senha) {
+  const res = await fetch("/api/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ senha }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (res.ok && data.token) { AUTH.setToken(data.token); return true; }
+  throw new Error(data.error || "Falha no login.");
+}
+
+async function analisarComIA(d) {
+  // Chama o backend — a chave da API fica protegida no servidor
+  const res = await fetch("/api/analise", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Auth-Token": AUTH.getToken() },
     body: JSON.stringify(d),
   });
+  if (res.status === 401) { AUTH.clear(); render(); throw new Error("Sessão expirada. Faça login novamente."); }
   if (!res.ok) {
     let msg = "Erro " + res.status;
     try { const e = await res.json(); msg = e.error + (e.detalhe ? " — " + e.detalhe : ""); } catch {}
@@ -237,9 +256,10 @@ async function gerarRelatorioIA(d, a, tipo, ctx) {
   // Chama o backend (Pages Function) — a chave fica protegida no servidor
   const res = await fetch("/api/relatorio", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-Auth-Token": AUTH.getToken() },
     body: JSON.stringify({ d, a, tipo, ctx }),
   });
+  if (res.status === 401) { AUTH.clear(); render(); return "Sessão expirada. Faça login novamente."; }
   if (!res.ok) return "Erro ao gerar relatório (" + res.status + ").";
   const data = await res.json();
   if (data.error) return "Erro: " + data.error;
@@ -263,7 +283,10 @@ function renderForm() {
         <div class="h1">Dados da empresa</div>
         <div class="sub">Preencha os dados do cliente — o dashboard é gerado automaticamente pela IA</div>
       </div>
-      ${hist.length>0 ? `<button class="btn-dark" style="border-color:var(--borda);background:#fff;color:var(--verde)" onclick="abrirHistorico()">↻ Clientes salvos (${new Set(hist.map(h=>slug(h.nome))).size})</button>` : ""}
+      <div style="display:flex;gap:8px;align-items:center">
+        ${hist.length>0 ? `<button class="btn-dark" style="border-color:var(--borda);background:#fff;color:var(--verde)" onclick="abrirHistorico()">↻ Clientes salvos (${new Set(hist.map(h=>slug(h.nome))).size})</button>` : ""}
+        <button class="btn-dark" style="border-color:var(--borda);background:#fff;color:var(--cinza)" onclick="logout()">Sair</button>
+      </div>
     </div>
 
     <button class="btn-demo" onclick="preencherFicticio()">⚡ Preencher com dados fictícios (demo)</button>
@@ -767,8 +790,42 @@ function abrirHistorico() {
   document.body.appendChild(modal);
 }
 
+// ─── TELA DE LOGIN ───────────────────────────────────────────────────────────
+function renderLogin(erro) {
+  app.innerHTML = `
+  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px">
+    <div style="max-width:380px;width:100%;background:#fff;border:1px solid var(--borda);border-radius:16px;padding:32px 28px;box-shadow:0 4px 24px rgba(0,0,0,.06)">
+      <div class="eyebrow" style="text-align:center">DeepForge ESG</div>
+      <div style="font-size:19px;font-weight:800;text-align:center;margin-bottom:6px">Acesso restrito</div>
+      <div style="font-size:12px;color:var(--cinza-claro);text-align:center;margin-bottom:22px">Informe a senha para acessar o diagnóstico</div>
+      <input id="login-senha" type="password" placeholder="Senha" style="margin-bottom:12px" onkeydown="if(event.key==='Enter')submeterLogin()" />
+      ${erro ? `<div style="font-size:12px;color:var(--verm);text-align:center;margin-bottom:12px">${esc(erro)}</div>` : ""}
+      <button class="btn-primary" onclick="submeterLogin()">Entrar</button>
+    </div>
+  </div>`;
+  setTimeout(() => { const el = document.getElementById("login-senha"); if (el) el.focus(); }, 60);
+}
+
+async function submeterLogin() {
+  const senha = document.getElementById("login-senha")?.value || "";
+  if (!senha) return renderLogin("Digite a senha.");
+  const btn = document.querySelector(".btn-primary");
+  if (btn) { btn.textContent = "Entrando..."; btn.disabled = true; }
+  try {
+    await fazerLogin(senha);
+    STATE.view = "form";
+    render();
+  } catch (e) {
+    renderLogin(e.message);
+  }
+}
+
+function logout() { AUTH.clear(); STATE.view = "form"; render(); }
+
 // ─── ROTEADOR ────────────────────────────────────────────────────────────────
 function render() {
+  // Portão de autenticação: sem token, só a tela de login
+  if (!AUTH.getToken()) { renderLogin(); return; }
   if (STATE.view==="form") renderForm();
   else if (STATE.view==="loading") renderLoading();
   else if (STATE.view==="dash") renderDash();

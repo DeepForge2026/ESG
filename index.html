@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DeepForge ESG — Diagnóstico e Monitoramento com IA</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --verde:#1D9E75; --verde-esc:#0f6e56; --verde-claro:#f0faf6;
+    --ambar:#EF9F27; --ambar-esc:#96600a; --ambar-claro:#fffbf0;
+    --azul:#378ADD; --azul-esc:#1550a0; --azul-claro:#eef4ff;
+    --roxo:#7F77DD; --roxo-esc:#534AB7;
+    --verm:#E24B4A; --verm-esc:#c0302f; --verm-claro:#fff0f0;
+    --tinta:#1a1a18; --cinza:#888; --cinza-claro:#aaa;
+    --borda:#e8e8e4; --fundo:#f7f7f4; --branco:#fff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter','Helvetica Neue',Arial,sans-serif; background: var(--fundo); color: var(--tinta); min-height: 100vh; }
+  input, select, textarea, button { font-family: inherit; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { width:40px; height:40px; border-radius:50%; border:3px solid rgba(29,158,117,.2); border-top-color:var(--verde); animation:spin 1s linear infinite; }
+  .spin-sm { width:28px; height:28px; border-radius:50%; border:3px solid rgba(29,158,117,.2); border-top-color:var(--verde); animation:spin 1s linear infinite; }
+  .hidden { display: none !important; }
+
+  .wrap-form { max-width: 720px; margin: 0 auto; padding: 24px 20px; }
+  .eyebrow { font-size:10px; font-weight:700; color:var(--verde); letter-spacing:.1em; text-transform:uppercase; margin-bottom:4px; }
+  .h1 { font-size:20px; font-weight:800; color:var(--tinta); margin-bottom:4px; }
+  .sub { font-size:12px; color:var(--cinza-claro); }
+  .sec { background:var(--branco); border:1px solid var(--borda); border-radius:12px; padding:20px; margin-bottom:14px; }
+  .sec-label { font-size:10px; font-weight:700; color:var(--cinza-claro); text-transform:uppercase; letter-spacing:.06em; margin:0 0 12px; display:flex; align-items:center; gap:8px; }
+  .sec-label::after { content:""; flex:1; height:.5px; background:var(--borda); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:12px; }
+  .field { display:flex; flex-direction:column; gap:5px; }
+  .field label { font-size:11px; font-weight:600; color:#666; }
+  .field .hint { font-size:10px; color:#bbb; }
+  input, select, textarea { font-size:13px; padding:8px 10px; border:1px solid #e0e0da; border-radius:8px; background:#fafaf8; color:var(--tinta); outline:none; width:100%; }
+  textarea { min-height:72px; resize:vertical; }
+  .btn-primary { width:100%; background:var(--verde); color:#fff; border:none; border-radius:10px; padding:14px; font-size:14px; font-weight:800; cursor:pointer; }
+  .btn-demo { font-size:11px; font-weight:700; padding:6px 12px; border-radius:7px; border:1px dashed rgba(55,138,221,.5); background:var(--azul-claro); color:var(--azul-esc); cursor:pointer; margin-bottom:18px; }
+  .res-grid { display:grid; grid-template-columns:2fr 1fr 1fr 1fr auto; gap:8px; margin-bottom:8px; align-items:center; }
+  .res-head { font-size:10px; font-weight:700; color:#ccc; text-transform:uppercase; letter-spacing:.04em; }
+  .btn-x { background:#fff5f5; border:1px solid #f0c0c0; color:#c03030; border-radius:6px; padding:6px 8px; cursor:pointer; font-size:11px; font-weight:700; }
+  .btn-add { font-size:11px; font-weight:700; color:var(--verde); background:transparent; border:1px dashed rgba(29,158,117,.5); border-radius:7px; padding:6px 14px; cursor:pointer; margin-top:4px; }
+
+
+  /* Dashboard */
+  .header { background:#111; padding:14px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; }
+  .header .co { font-size:15px; font-weight:700; color:#fff; }
+  .header .meta { font-size:11px; color:#666; margin-top:1px; }
+  .header .score-lbl { font-size:10px; color:#666; }
+  .header .score-val { font-size:28px; font-weight:800; line-height:1; }
+  .btn-dark { font-size:11px; font-weight:700; padding:7px 12px; border-radius:7px; border:1px solid #333; background:transparent; color:#aaa; cursor:pointer; }
+  .btn-save { font-size:11px; font-weight:700; padding:7px 12px; border-radius:7px; border:none; background:#2a2a2a; color:#ccc; cursor:pointer; }
+  .tabs { background:var(--branco); border-bottom:1px solid var(--borda); padding:0 20px; display:flex; overflow-x:auto; }
+  .tab { padding:10px 14px; font-size:12px; font-weight:500; color:var(--cinza); background:transparent; border:none; border-bottom:2px solid transparent; cursor:pointer; white-space:nowrap; }
+  .tab.active { font-weight:700; color:var(--verde); border-bottom-color:var(--verde); }
+  .panel { padding:18px 20px; max-width:1000px; margin:0 auto; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:14px; }
+  .card { background:var(--branco); border:1px solid var(--borda); border-radius:12px; padding:14px 16px; }
+  .card .lbl { font-size:10px; font-weight:600; color:var(--cinza-claro); text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px; }
+  .card .val { font-size:20px; font-weight:800; }
+  .card .val.sm { font-size:15px; }
+  .card .sub { font-size:11px; color:var(--cinza-claro); }
+  .box { background:var(--branco); border:1px solid var(--borda); border-radius:12px; padding:16px; }
+  .tag { font-size:10px; font-weight:700; padding:2px 7px; border-radius:4px; white-space:nowrap; display:inline-block; }
+  .tag.crit { background:var(--verm-claro); color:var(--verm-esc); border:.5px solid rgba(192,48,47,.25); }
+  .tag.gap { background:var(--azul-claro); color:var(--azul-esc); border:.5px solid rgba(21,80,160,.25); }
+  .tag.atenc { background:var(--ambar-claro); color:var(--ambar-esc); border:.5px solid rgba(150,96,10,.25); }
+  .tag.op { background:var(--verde-claro); color:var(--verde-esc); border:.5px solid rgba(15,110,86,.25); }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th { text-align:left; font-size:10px; font-weight:700; color:var(--cinza-claro); text-transform:uppercase; letter-spacing:.04em; padding:7px 11px; border-bottom:1px solid #f0f0ec; white-space:nowrap; }
+  td { padding:9px 11px; border-bottom:.5px solid #f5f5f2; }
+  .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50; }
+  .modal { background:var(--branco); border-radius:16px; max-width:560px; width:100%; max-height:80vh; overflow:auto; box-shadow:0 10px 40px rgba(0,0,0,.2); }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+// DeepForge ESG — Dashboard HTML (sem dependência de build)
+// ═══════════════════════════════════════════════════════════════════════════
+
+const C = {
+  verde:"#1D9E75", verdeEsc:"#0f6e56", verdeClaro:"#f0faf6",
+  ambar:"#EF9F27", ambarEsc:"#96600a", ambarClaro:"#fffbf0",
+  azul:"#378ADD", azulEsc:"#1550a0", azulClaro:"#eef4ff",
+  roxo:"#7F77DD", verm:"#E24B4A", vermEsc:"#c0302f",
+  tinta:"#1a1a18", cinza:"#888", cinzaClaro:"#aaa",
+};
+
+const BENCHMARK = {
+  geral: { media:68, exigemFornecedor:72.3, adotam:96.1, metas:38.4 },
+  setores: {
+    metalurgia:{media:64,label:"Metalurgia / metalmecânica"},
+    quimica:{media:71,label:"Química"},
+    alimentos:{media:66,label:"Alimentos e bebidas"},
+    textil:{media:61,label:"Têxtil"},
+    plastico:{media:63,label:"Plásticos e borracha"},
+    construcao:{media:59,label:"Construção civil"},
+    outro:{media:68,label:"Média geral RJ"},
+  },
+};
+
+const CONFORMIDADE_BASE = [
+  {id:"pnrs", lei:"PNRS — Lei 12.305/2010", item:"Plano de Gerenciamento de Resíduos Sólidos (PGRS)", critico:true},
+  {id:"mtr", lei:"Sistema MTR / INEA", item:"Manifesto de Transporte de Resíduos emitido", critico:true},
+  {id:"licenca", lei:"Res. CONAMA 237/1997", item:"Licença ambiental válida (LP/LI/LO ou LMS)", critico:true},
+  {id:"abnt", lei:"NBR 10.004/2004", item:"Resíduos classificados por classe de risco", critico:false},
+  {id:"lgpd", lei:"LGPD — Lei 13.709/2018", item:"Política de privacidade e tratamento de dados", critico:false},
+  {id:"outorga", lei:"ANA / INEA", item:"Outorga de uso de água (se capta água)", critico:false},
+  {id:"efluentes", lei:"Res. CONAMA 430/2011", item:"Sistema de tratamento de efluentes licenciado", critico:false},
+  {id:"atmosf", lei:"Res. CONAMA 382/2006", item:"Controle de emissões atmosféricas (se aplicável)", critico:false},
+];
+
+const PRIORIDADE_COR = { "Crítica":C.verm, Alta:C.ambar, "Média":C.azul, Baixa:C.cinza };
+const PRIORIDADE_TAG = { "Crítica":"crit", Alta:"atenc", "Média":"gap", Baixa:"op" };
+const STATUS_MAP = { ok:[C.verde,"Conforme"], atencao:[C.ambar,"Atenção"], gap:[C.azul,"Gap"], critico:[C.verm,"Crítico"] };
+const CLASSE_COLOR = { "Classe I":"crit","Classe II-A":"atenc","Classe II-B":"op","Classe III":"op" };
+const TIPO_TAG = { critico:"crit", gap:"gap", atencao:"atenc", oportunidade:"op" };
+const TIPO_LABEL = { critico:"Crítico", gap:"Gap", atencao:"Atenção", oportunidade:"Oportunidade" };
+
+// ─── PERSISTÊNCIA (localStorage) ─────────────────────────────────────────────
+const DB = {
+  getAll() {
+    try { return JSON.parse(localStorage.getItem("deepforge_esg_diag") || "[]"); }
+    catch { return []; }
+  },
+  save(reg) {
+    const all = this.getAll();
+    all.push(reg);
+    try { localStorage.setItem("deepforge_esg_diag", JSON.stringify(all)); } catch {}
+  },
+};
+
+// ─── UTILIDADES ──────────────────────────────────────────────────────────────
+const esc = (s) => String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const slug = (s) => (s||"empresa").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,40);
+const hoje = () => new Date().toISOString().slice(0,10);
+const fmtData = (iso) => { try { return new Date(iso+"T12:00:00").toLocaleDateString("pt-BR",{day:"2-digit",month:"short",year:"numeric"}); } catch { return iso; } };
+const scoreColor = (s) => s>=70?C.verde:s>=50?C.ambar:C.verm;
+
+// ─── CÁLCULO DE CONFORMIDADE ─────────────────────────────────────────────────
+function calcularConformidade(d, a) {
+  const resClass = a.residuosClassificados || [];
+  const temMTR = resClass.some(r => r.mtr);
+  const temResiduoSemMTR = resClass.some(r => !r.mtr && (r.classe==="Classe I" || r.classe==="Classe II-A"));
+  const temPerigoso = resClass.some(r => r.classe==="Classe I");
+
+  return CONFORMIDADE_BASE.map(base => {
+    let status="verificar", obs="";
+    switch (base.id) {
+      case "pnrs": status="verificar"; obs="Empresas geradoras de resíduos devem manter PGRS atualizado."; break;
+      case "mtr":
+        if (temResiduoSemMTR) { status="risco"; obs="Há resíduos perigosos sem MTR emitido — risco de autuação pelo INEA."; }
+        else if (temMTR) status="ok"; else status="verificar";
+        break;
+      case "licenca":
+        if (d.licenca==="valida") status="ok";
+        else if (d.licenca==="vencida") { status="risco"; obs="Operar sem licença válida é infração ambiental grave."; }
+        else if (d.licenca==="vencendo") { status="risco"; obs="Licença vencendo — iniciar renovação com 120 dias de antecedência (Res. CONAMA 237)."; }
+        else if (d.licenca==="nao") { status="risco"; obs="Atividade industrial sem licença ambiental."; }
+        break;
+      case "abnt": status = resClass.length>0 && resClass.every(r=>r.classe) ? "ok" : "verificar"; break;
+      case "lgpd":
+        if (d.lgpd==="sim") status="ok";
+        else if (d.lgpd==="parcial") { status="verificar"; obs="Política LGPD em elaboração — formalizar para fortalecer o pilar Governança."; }
+        else status="verificar";
+        break;
+      case "outorga":
+        if (d.captaAgua==="sim") { status="verificar"; obs="Capta água — verificar necessidade de outorga junto ao INEA/ANA."; }
+        else status="ok";
+        break;
+      case "efluentes": status = temPerigoso ? "verificar" : "ok"; break;
+      case "atmosf": status = (d.comb && d.comb!=="nenhum") ? "verificar" : "ok"; break;
+    }
+    return { ...base, status, obs };
+  });
+}
+
+// ─── CÁLCULO DE DOCUMENTOS ───────────────────────────────────────────────────
+function calcularDocumentos(d, a) {
+  const docs = [];
+  const addDias = (n) => { const dt=new Date(); dt.setDate(dt.getDate()+n); return dt.toISOString().slice(0,10); };
+  if (d.licenca==="valida") docs.push({nome:"Licença de Operação (LO)",tipo:"Licença ambiental · INEA",vencimento:addDias(400),dias:400,status:"ativo"});
+  else if (d.licenca==="vencendo") docs.push({nome:"Licença de Operação (LO)",tipo:"Licença ambiental · INEA",vencimento:addDias(75),dias:75,status:"ativo"});
+  else if (d.licenca==="vencida") docs.push({nome:"Licença de Operação (LO)",tipo:"Licença ambiental · INEA",vencimento:addDias(-30),dias:-30,status:"ativo"});
+  else docs.push({nome:"Licença de Operação (LO)",tipo:"Licença ambiental · INEA",vencimento:null,dias:null,status:"pendente"});
+
+  (a.residuosClassificados||[]).forEach(r => {
+    if (r.classe==="Classe I" || r.classe==="Classe II-A") {
+      docs.push({nome:`MTR — ${r.tipo}`,tipo:"Manifesto de Transporte · SINIR/INEA",vencimento:r.mtr?addDias(25):null,dias:r.mtr?25:null,status:r.mtr?"ativo":"pendente"});
+    }
+  });
+  if (d.captaAgua==="sim") docs.push({nome:"Outorga de uso de água",tipo:"ANA / INEA",vencimento:null,dias:null,status:"pendente"});
+  docs.push({nome:"PGRS — Plano de Gerenciamento de Resíduos",tipo:"PNRS · revisão anual",vencimento:addDias(180),dias:180,status:"ativo"});
+  if (d.cert==="iso14001") docs.push({nome:"Certificado ISO 14001",tipo:"Certificação · recertificação trienal",vencimento:addDias(500),dias:500,status:"ativo"});
+
+  return docs.sort((x,y) => {
+    if (x.status==="pendente" && y.status!=="pendente") return 1;
+    if (y.status==="pendente" && x.status!=="pendente") return -1;
+    if (x.dias==null) return 1; if (y.dias==null) return -1;
+    return x.dias - y.dias;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ESTADO GLOBAL
+// ═══════════════════════════════════════════════════════════════════════════
+const app = document.getElementById("app");
+let STATE = { view:"form", dados:null, analise:null, aba:"overview", relatorio:"", relatorioTipo:"executivo", residuos:[0,1], nextId:2 };
+
+function setView(v) { STATE.view=v; render(); }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CHAMADA DE IA — usa tool_use para JSON garantido
+// ═══════════════════════════════════════════════════════════════════════════
+async function analisarComIA(d) {
+  // Chama o backend (Pages Function) — a chave da API fica protegida no servidor
+  const res = await fetch("/api/analise", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(d),
+  });
+  if (!res.ok) {
+    let msg = "Erro " + res.status;
+    try { const e = await res.json(); msg = e.error + (e.detalhe ? " — " + e.detalhe : ""); } catch {}
+    throw new Error(msg);
+  }
+  const analise = await res.json();
+  if (analise.error) throw new Error(analise.error);
+  return analise;
+}
+
+async function gerarRelatorioIA(d, a, tipo, ctx) {
+  // Chama o backend (Pages Function) — a chave fica protegida no servidor
+  const res = await fetch("/api/relatorio", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ d, a, tipo, ctx }),
+  });
+  if (!res.ok) return "Erro ao gerar relatório (" + res.status + ").";
+  const data = await res.json();
+  if (data.error) return "Erro: " + data.error;
+  return data.texto || "Não foi possível gerar.";
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDER: FORMULÁRIO
+// ═══════════════════════════════════════════════════════════════════════════
+function renderForm() {
+  const hist = DB.getAll();
+  const setoresOpts = Object.entries(BENCHMARK.setores).filter(([k])=>k!=="outro")
+    .map(([k,v])=>`<option value="${k}">${v.label}</option>`).join("") + `<option value="outro">Outro</option>`;
+  const resRows = STATE.residuos.map(id => resRowHTML(id)).join("");
+
+  app.innerHTML = `
+  <div class="wrap-form">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:8px">
+      <div>
+        <div class="eyebrow">DeepForge ESG · Diagnóstico com IA</div>
+        <div class="h1">Dados da empresa</div>
+        <div class="sub">Preencha os dados do cliente — o dashboard é gerado automaticamente pela IA</div>
+      </div>
+      ${hist.length>0 ? `<button class="btn-dark" style="border-color:var(--borda);background:#fff;color:var(--verde)" onclick="abrirHistorico()">↻ Clientes salvos (${new Set(hist.map(h=>slug(h.nome))).size})</button>` : ""}
+    </div>
+
+    <button class="btn-demo" onclick="preencherFicticio()">⚡ Preencher com dados fictícios (demo)</button>
+
+    <div class="sec">
+      <div class="sec-label">Identificação da empresa</div>
+      <div class="grid">
+        <div class="field"><label>Nome da empresa</label><input id="f-nome" placeholder="Ex: Metálica Fluminense Ltda." /></div>
+        <div class="field"><label>Setor / segmento</label><select id="f-setor"><option value="">Selecione...</option>${setoresOpts}</select></div>
+        <div class="field"><label>Descrição da atividade</label><input id="f-setor-livre" placeholder="Ex: Fundição de peças" /></div>
+        <div class="field"><label>Município</label><input id="f-cidade" placeholder="Ex: Queimados — RJ" /></div>
+        <div class="field"><label>Nº de funcionários</label><input id="f-func" type="number" placeholder="Ex: 87" /></div>
+        <div class="field"><label>Faturamento anual estimado</label><input id="f-fat" placeholder="Ex: R$ 18,4M" /></div>
+        <div class="field"><label>Principal produto / serviço</label><input id="f-produto" placeholder="Ex: Peças metálicas" /></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-label">Energia e emissões</div>
+      <div class="grid">
+        <div class="field"><label>Energia elétrica (kWh/mês)</label><input id="f-energia" type="number" placeholder="Ex: 48000" /><span class="hint">Ver na conta de energia</span></div>
+        <div class="field"><label>Combustível próprio</label><select id="f-comb"><option value="nenhum">Nenhum / não sei</option><option value="diesel">Diesel</option><option value="gasolina">Gasolina</option><option value="gnv">GNV</option><option value="etanol">Etanol</option></select></div>
+        <div class="field"><label>Combustível (litros/mês)</label><input id="f-comb-vol" type="number" placeholder="Ex: 800" /></div>
+        <div class="field"><label>Geração de energia própria?</label><select id="f-solar"><option value="nao">Não</option><option value="solar">Solar fotovoltaico</option><option value="outro">Outra fonte</option></select></div>
+        <div class="field"><label>Capta água (poço/rio)?</label><select id="f-agua"><option value="nao">Não / rede pública</option><option value="sim">Sim, capta água</option></select></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-label">Resíduos gerados</div>
+      <div class="res-grid">
+        <span class="res-head">Tipo de resíduo</span><span class="res-head">Volume/mês</span><span class="res-head">Unid.</span><span class="res-head">Destinação</span><span></span>
+      </div>
+      <div id="res-container">${resRows}</div>
+      <button class="btn-add" onclick="addResiduo()">+ Adicionar resíduo</button>
+    </div>
+
+    <div class="sec">
+      <div class="sec-label">Social e governança</div>
+      <div class="grid">
+        <div class="field"><label>% funcionários CLT</label><input id="f-clt" type="number" placeholder="Ex: 100" /></div>
+        <div class="field"><label>Treinamentos segurança (vezes/ano)</label><input id="f-trein" type="number" placeholder="Ex: 2" /></div>
+        <div class="field"><label>Acidentes registrados (último ano)</label><input id="f-acid" type="number" placeholder="Ex: 0" /></div>
+        <div class="field"><label>Política de privacidade (LGPD)?</label><select id="f-lgpd"><option value="nao">Não possui</option><option value="parcial">Parcial / em elaboração</option><option value="sim">Sim, formalizada</option></select></div>
+        <div class="field"><label>Certificações ambientais?</label><select id="f-cert"><option value="nao">Não</option><option value="iso14001">ISO 14001</option><option value="outro">Outra</option></select></div>
+        <div class="field"><label>Licença ambiental?</label><select id="f-licenca"><option value="nao">Não possui</option><option value="valida">Válida</option><option value="vencendo">Vencendo (< 6 meses)</option><option value="vencida">Vencida</option></select></div>
+        <div class="field"><label>Exporta / clientes estrangeiros?</label><select id="f-export"><option value="nao">Não</option><option value="sim">Sim — Europa / EUA</option><option value="mercosul">Sim — Mercosul</option></select></div>
+      </div>
+      <div class="field" style="margin-top:12px"><label>Contexto adicional (desafios, projetos, situação atual)</label><textarea id="f-contexto" placeholder="Ex: Tentando fechar contrato com empresa europeia que exige ESG. Principal gargalo é gestão de resíduos."></textarea></div>
+    </div>
+
+    <button class="btn-primary" onclick="submeterForm()">✦ Gerar diagnóstico ESG com IA</button>
+  </div>`;
+}
+
+function resRowHTML(id) {
+  return `<div class="res-grid" id="res-${id}">
+    <input id="rt-${id}" placeholder="Ex: Sucata metálica" />
+    <input id="rv-${id}" type="number" placeholder="0" />
+    <select id="ru-${id}"><option value="t">t/mês</option><option value="kg">kg/mês</option><option value="L">L/mês</option><option value="m3">m³/mês</option></select>
+    <select id="rd-${id}"><option value="reciclagem">Reciclagem</option><option value="aterro">Aterro sanitário</option><option value="incineracao">Incineração</option><option value="coprocessamento">Co-processamento</option><option value="ete">ETE própria</option><option value="sem">Sem destinação</option><option value="nao_sei">Não sei</option></select>
+    <button class="btn-x" onclick="removeResiduo(${id})">✕</button>
+  </div>`;
+}
+
+function addResiduo() {
+  const id = STATE.nextId++;
+  STATE.residuos.push(id);
+  document.getElementById("res-container").insertAdjacentHTML("beforeend", resRowHTML(id));
+}
+function removeResiduo(id) {
+  STATE.residuos = STATE.residuos.filter(x=>x!==id);
+  const el = document.getElementById("res-"+id); if (el) el.remove();
+}
+
+function coletarForm() {
+  const g = (id) => document.getElementById(id)?.value.trim();
+  const gv = (id) => document.getElementById(id)?.value;
+  const res = STATE.residuos.map(id => {
+    const tipo = g("rt-"+id); if (!tipo) return null;
+    return { tipo, vol:gv("rv-"+id), unid:gv("ru-"+id), dest:gv("rd-"+id) };
+  }).filter(Boolean);
+  return {
+    nome:g("f-nome")||"Empresa", setor:gv("f-setor"), setorLivre:g("f-setor-livre"),
+    cidade:g("f-cidade"), func:gv("f-func"), fat:g("f-fat"), produto:g("f-produto"),
+    energia:gv("f-energia"), comb:gv("f-comb"), combVol:gv("f-comb-vol"), solar:gv("f-solar"), captaAgua:gv("f-agua"),
+    clt:gv("f-clt"), trein:gv("f-trein"), acid:gv("f-acid"),
+    lgpd:gv("f-lgpd"), cert:gv("f-cert"), licenca:gv("f-licenca"), export:gv("f-export"),
+    contexto:g("f-contexto"), residuos:res,
+  };
+}
+
+async function submeterForm() {
+  const d = coletarForm();
+  if (!d.nome || d.nome==="Empresa") return alert("Preencha o nome da empresa.");
+  STATE.dados = d;
+  setView("loading");
+  let step = 0;
+  const iv = setInterval(() => { step=Math.min(4,step+1); updateLoadingStep(step); }, 700);
+  try {
+    const a = await analisarComIA(d);
+    clearInterval(iv);
+    STATE.analise = a; STATE.aba="overview"; STATE.relatorio="";
+    setView("dash");
+  } catch (e) {
+    clearInterval(iv);
+    setView("form");
+    alert("Erro ao processar com IA:\n\n" + e.message);
+  }
+}
+
+function preencherFicticio() {
+  const s = (id,v) => { const el=document.getElementById(id); if(el) el.value=v; };
+  s("f-nome","Indústria Química Carioca Ltda."); s("f-setor","quimica");
+  s("f-setor-livre","Fabricação de aditivos químicos industriais"); s("f-cidade","Santa Cruz — RJ");
+  s("f-func","134"); s("f-fat","R$ 32,5M"); s("f-produto","Aditivos e insumos químicos");
+  s("f-energia","72000"); s("f-comb","diesel"); s("f-comb-vol","1200"); s("f-solar","nao"); s("f-agua","sim");
+  s("f-clt","92"); s("f-trein","3"); s("f-acid","1");
+  s("f-lgpd","parcial"); s("f-cert","nao"); s("f-licenca","vencendo"); s("f-export","sim");
+  s("f-contexto","Fornecedora da BASF. Cliente exige comprovação ESG para renovar contrato. Lodo da ETE sem destinação definida. Licença de operação vence em 3 meses.");
+  const dados = [["Sucata metálica","2","t","reciclagem"],["Lodo de ETE","8","t","sem"],["Embalagens contaminadas","300","kg","nao_sei"],["Óleo lubrificante usado","150","L","coprocessamento"],["Resíduo químico Classe I","500","kg","incineracao"]];
+  document.getElementById("res-container").innerHTML = "";
+  STATE.residuos = []; STATE.nextId = 0;
+  dados.forEach(([t,v,u,dst]) => {
+    const id = STATE.nextId++;
+    STATE.residuos.push(id);
+    document.getElementById("res-container").insertAdjacentHTML("beforeend", resRowHTML(id));
+    document.getElementById("rt-"+id).value=t; document.getElementById("rv-"+id).value=v;
+    document.getElementById("ru-"+id).value=u; document.getElementById("rd-"+id).value=dst;
+  });
+}
+
+// ─── LOADING ─────────────────────────────────────────────────────────────────
+function renderLoading() {
+  const steps = ["Analisando perfil da empresa","Calculando pegada de carbono","Classificando resíduos por risco","Verificando conformidade legal","Gerando plano de ação com ROI"];
+  app.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;gap:16px">
+    <div class="spin"></div>
+    <div style="font-size:15px;font-weight:800">IA processando diagnóstico...</div>
+    <div id="load-steps" style="display:flex;flex-direction:column;gap:6px;text-align:center">
+      ${steps.map((s,i)=>`<div class="load-step" data-i="${i}" style="font-size:12px;color:${C.cinzaClaro}">${s}</div>`).join("")}
+    </div>
+  </div>`;
+}
+function updateLoadingStep(step) {
+  document.querySelectorAll(".load-step").forEach(el => {
+    const i = +el.dataset.i;
+    el.style.color = i===step ? C.verde : i<step ? "#ccc" : C.cinzaClaro;
+    el.style.fontWeight = i===step ? "700" : "400";
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDER: DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════════
+function ctxCalc() {
+  const d = STATE.dados, a = STATE.analise;
+  const setorKey = d.setor && BENCHMARK.setores[d.setor] ? d.setor : "outro";
+  const bench = BENCHMARK.setores[setorKey];
+  const deltaBench = a.scoreTotal - bench.media;
+  const percentil = Math.max(5, Math.min(95, Math.round(50 + deltaBench*1.8)));
+  const conformidade = calcularConformidade(d, a);
+  const conformidadePct = Math.round((conformidade.filter(c=>c.status==="ok").length / conformidade.length)*100);
+  const documentos = calcularDocumentos(d, a);
+  const hist = DB.getAll().filter(h => slug(h.nome)===slug(d.nome)).sort((x,y)=>x.data.localeCompare(y.data));
+  const anterior = hist.length>0 ? hist[hist.length-1] : null;
+  const trendScore = anterior ? a.scoreTotal - anterior.scoreTotal : null;
+  return { bench, deltaBench, percentil, conformidade, conformidadePct, documentos, hist, anterior, trendScore };
+}
+
+function cardHTML(lbl, val, sub, color, trend) {
+  const big = String(val).length>6;
+  const tr = trend!=null ? `<span style="font-size:11px;font-weight:700;margin-left:6px;color:${trend>0?C.verde:trend<0?C.verm:C.cinzaClaro}">${trend>0?"▲":trend<0?"▼":"—"} ${Math.abs(trend)}</span>` : "";
+  return `<div class="card"><div class="lbl">${lbl}</div><div class="val ${big?"sm":""}" style="color:${color||C.tinta}">${val}${tr}</div>${sub?`<div class="sub">${sub}</div>`:""}</div>`;
+}
+
+function renderDash() {
+  const d = STATE.dados, a = STATE.analise;
+  const cx = ctxCalc();
+  const sc = scoreColor(a.scoreTotal);
+  const abas = [
+    ["overview","Visão geral"],["residuos","Resíduos"],["carbono","Carbono"],
+    ["conformidade",`Conformidade${cx.conformidadePct<100?" ⚠":" ✓"}`],
+    ["acoes","Plano de ação"],["documentos","Documentos"],
+    ["monitoramento","Monitoramento"],["relatorio",`Relatórios${STATE.relatorio?" ✓":""}`],
+  ];
+  const trendHdr = cx.trendScore!=null ? `<span style="font-size:13px;margin-left:6px;color:${cx.trendScore>=0?C.verde:C.verm}">${cx.trendScore>=0?"▲":"▼"}${Math.abs(cx.trendScore)}</span>` : "";
+
+  app.innerHTML = `
+  <div class="header">
+    <div>
+      <div class="eyebrow" style="margin-bottom:2px">DeepForge ESG · Diagnóstico gerado por IA</div>
+      <div class="co">${esc(d.nome)}</div>
+      <div class="meta">${esc(cx.bench.label)} · ${esc(d.cidade||"—")} · ${esc(d.func||"?")} func</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="text-align:right">
+        <div class="score-lbl">Score ESG geral</div>
+        <div class="score-val" style="color:${sc}">${a.scoreTotal}<span style="font-size:12px;color:#555;font-weight:400">/100</span>${trendHdr}</div>
+      </div>
+      <button class="btn-save" id="btn-salvar" onclick="salvarDiag()">⬇ Salvar</button>
+      <button class="btn-dark" onclick="novoCliente()">← Novo</button>
+    </div>
+  </div>
+  <div class="tabs">
+    ${abas.map(([id,lbl])=>`<button class="tab ${STATE.aba===id?"active":""}" onclick="mudarAba('${id}')">${lbl}</button>`).join("")}
+  </div>
+  <div class="panel" id="panel-content">${renderAba(STATE.aba, d, a, cx)}</div>`;
+
+  if (STATE.aba==="carbono") setTimeout(()=>renderCharts("carbono",a,cx), 60);
+  if (STATE.aba==="monitoramento" && cx.hist.length>=2) setTimeout(()=>renderCharts("monitoramento",a,cx), 60);
+}
+
+function mudarAba(id) { STATE.aba=id; renderDash(); }
+
+function renderAba(aba, d, a, cx) {
+  const sc = scoreColor(a.scoreTotal);
+  const resClass = a.residuosClassificados || [];
+
+  if (aba==="overview") {
+    return `
+    <div class="cards">
+      ${cardHTML("Funcionários", d.func||"—", "colaboradores")}
+      ${cardHTML("Faturamento", d.fat||"—", "ano-base")}
+      ${cardHTML("Carbono total", a.co2Total+" tCO₂e", "por ano", C.verm)}
+      ${cardHTML("Conformidade legal", cx.conformidadePct+"%", "requisitos", cx.conformidadePct>=70?C.verde:C.ambar)}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div class="box" style="display:flex;flex-direction:column;align-items:center;gap:14px">
+        <div class="sec-label" style="width:100%">Score por pilar</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center">
+          ${ringHTML(a.scoreE,C.verde,"Ambiental")}${ringHTML(a.scoreS,C.azul,"Social")}${ringHTML(a.scoreG,C.roxo,"Governança")}
+        </div>
+      </div>
+      <div class="box">
+        <div class="sec-label">Benchmark do setor</div>
+        <div style="text-align:center;padding:8px 0 14px">
+          <div style="font-size:34px;font-weight:800;color:${cx.deltaBench>=0?C.verde:C.ambar};line-height:1">${cx.percentil}º</div>
+          <div style="font-size:11px;color:${C.cinza};margin-top:3px">percentil em ${esc(cx.bench.label)}</div>
+        </div>
+        <div style="position:relative;height:8px;background:#f0f0ec;border-radius:4px;margin-bottom:10px">
+          <div style="position:absolute;left:${cx.bench.media}%;top:-4px;width:2px;height:16px;background:${C.cinza}"></div>
+          <div style="position:absolute;left:0;top:0;height:8px;width:${Math.min(100,a.scoreTotal)}%;background:${cx.deltaBench>=0?C.verde:C.ambar};border-radius:4px"></div>
+        </div>
+        <div style="font-size:11px;color:#555;line-height:1.6">Sua empresa: <strong style="color:${sc}">${a.scoreTotal}</strong> · Média do setor: <strong>${cx.bench.media}</strong>
+          <div style="margin-top:6px;color:${cx.deltaBench>=0?C.verdeEsc:C.ambarEsc};font-weight:600">${cx.deltaBench>=0?`↑ ${cx.deltaBench} pontos acima da média`:`↓ ${Math.abs(cx.deltaBench)} pontos abaixo da média`}</div>
+        </div>
+        <div style="font-size:10px;color:#bbb;border-top:.5px solid var(--borda);padding-top:8px;margin-top:10px">Base: FIRJAN ESG 2025 · ${BENCHMARK.geral.exigemFornecedor}% das empresas RJ exigem ESG de fornecedores</div>
+      </div>
+    </div>
+    <div class="box">
+      <div class="sec-label">Alertas identificados pela IA</div>
+      ${(a.alertas||[]).map((al,i)=>`<div style="display:flex;gap:8px;align-items:flex-start;padding:8px 0;${i<a.alertas.length-1?"border-bottom:.5px solid #f5f5f2":""};font-size:12px;color:#555;line-height:1.5"><span class="tag ${TIPO_TAG[al.tipo]||"op"}">${TIPO_LABEL[al.tipo]||al.tipo}</span>${esc(al.texto)}</div>`).join("")}
+    </div>`;
+  }
+
+  if (aba==="residuos") {
+    return `<div class="box" style="padding:0;overflow:hidden">
+      <div style="padding:12px 16px;border-bottom:1px solid #f0f0ec;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px">
+        <div style="font-size:13px;font-weight:700">Mapa de resíduos — classificação por IA</div>
+        <div style="font-size:11px;color:${C.cinzaClaro}">${resClass.length} fluxos · ${resClass.filter(r=>r.mtr).length} com MTR · ${resClass.filter(r=>r.status==="critico"||r.status==="gap").length} com gaps</div>
+      </div>
+      <div style="overflow-x:auto"><table>
+        <thead><tr style="background:#fafaf8">${["Resíduo","Volume","Classe ABNT","Destinação","MTR","Status"].map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+        <tbody>${resClass.map(r=>{
+          const [cor,lbl]=STATUS_MAP[r.status]||[C.cinzaClaro,"—"];
+          const bg = r.status==="critico"?"#fff8f8":r.status==="gap"?"#f8fbff":"#fff";
+          return `<tr style="background:${bg}"><td style="font-weight:600">${esc(r.tipo)}</td><td>${esc(r.volume||"—")}</td><td><span class="tag ${CLASSE_COLOR[r.classe]||"op"}">${esc(r.classe||"—")}</span></td><td style="color:#555">${esc(r.risco||"—")}</td><td style="color:${r.mtr?C.verde:C.verm};font-weight:700">${r.mtr?"✓ Emitido":"✗ Pendente"}</td><td><span style="display:flex;align-items:center;font-size:11px;font-weight:600;color:${cor}"><span style="width:7px;height:7px;border-radius:50%;background:${cor};display:inline-block;margin-right:5px"></span>${lbl}</span></td></tr>`;
+        }).join("")}</tbody>
+      </table></div>
+    </div>`;
+  }
+
+  if (aba==="carbono") {
+    const meta = a.meta2030 || Math.round(a.co2Total*.65);
+    return `
+    <div class="cards">
+      ${cardHTML("Total emitido", a.co2Total, "tCO₂e/ano", C.verm)}
+      ${cardHTML("Escopo 1 (direto)", a.co2Escopo1, "tCO₂e/ano", C.verm)}
+      ${cardHTML("Escopo 2 (energia)", a.co2Escopo2, "tCO₂e/ano", C.ambar)}
+      ${cardHTML("Meta 2030 (−35%)", meta, "tCO₂e/ano", C.verde)}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div class="box"><div class="sec-label">Por escopo</div><div style="position:relative;height:160px"><canvas id="chartEscopo"></canvas></div></div>
+      <div class="box"><div class="sec-label">Trajetória projetada</div><div style="position:relative;height:160px"><canvas id="chartTraj"></canvas></div><div style="font-size:10px;color:#bbb;margin-top:6px;font-style:italic">* Projeção com plano de ação</div></div>
+    </div>
+    <div style="background:var(--verde-claro);border:1px solid rgba(29,158,117,.2);border-radius:10px;padding:11px 14px;font-size:12px;color:var(--verde-esc);line-height:1.6"><strong>Análise IA:</strong> ${esc(a.insightCarbono)}</div>`;
+  }
+
+  return renderAbaExtra(aba, d, a, cx);
+}
+
+function ringHTML(score, color, label) {
+  const cid = "ring-"+label;
+  setTimeout(()=>drawRing(cid, score, color), 20);
+  return `<div style="display:flex;flex-direction:column;align-items:center;gap:5px"><canvas id="${cid}" width="80" height="80"></canvas><span style="font-size:11px;font-weight:600;color:${color}">${label}</span></div>`;
+}
+function drawRing(id, score, color) {
+  const c = document.getElementById(id); if (!c) return;
+  const ctx = c.getContext("2d"); const cx=40,cy=40,r=32;
+  ctx.clearRect(0,0,80,80);
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.strokeStyle="#f0f0ec"; ctx.lineWidth=6; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,r,-Math.PI/2,-Math.PI/2+(score/100)*Math.PI*2); ctx.strokeStyle=color; ctx.lineWidth=6; ctx.lineCap="round"; ctx.stroke();
+  ctx.fillStyle=color; ctx.font="bold 16px Inter,sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText(score,cx,cy-4);
+  ctx.fillStyle=C.cinzaClaro; ctx.font="9px Inter,sans-serif"; ctx.fillText("/100",cx,cy+9);
+}
+
+// ─── ABAS EXTRAS (conformidade, ações, documentos, monitoramento, relatórios) ─
+function renderAbaExtra(aba, d, a, cx) {
+  const sc = scoreColor(a.scoreTotal);
+
+  if (aba==="conformidade") {
+    const conf = cx.conformidade;
+    return `
+    <div class="cards">
+      ${cardHTML("Conformidade geral", cx.conformidadePct+"%", "requisitos legais", cx.conformidadePct>=70?C.verde:C.ambar)}
+      ${cardHTML("Requisitos críticos", conf.filter(c=>c.critico&&c.status!=="ok").length, "em risco de multa", C.verm)}
+      ${cardHTML("Conformes", conf.filter(c=>c.status==="ok").length, "de "+conf.length+" itens", C.verde)}
+      ${cardHTML("Pendentes", conf.filter(c=>c.status!=="ok").length, "a regularizar", C.ambar)}
+    </div>
+    <div class="box" style="padding:0;overflow:hidden">
+      <div style="padding:12px 16px;border-bottom:1px solid #f0f0ec;font-size:13px;font-weight:700">Checklist de conformidade legal ambiental <span style="font-size:11px;font-weight:400;color:${C.cinzaClaro};margin-left:8px">obrigações aplicáveis a PMEs industriais</span></div>
+      ${conf.map((c,i)=>{
+        const cor = c.status==="ok"?C.verde:c.status==="risco"?C.verm:C.ambar;
+        const lbl = c.status==="ok"?"Conforme":c.status==="risco"?"Em risco":"Verificar";
+        const icone = c.status==="ok"?"✓":c.status==="risco"?"!":"?";
+        return `<div style="display:flex;gap:12px;align-items:flex-start;padding:12px 16px;${i<conf.length-1?"border-bottom:.5px solid #f5f5f2":""};background:${c.status==="risco"?"#fff8f8":"#fff"}">
+          <div style="width:20px;height:20px;border-radius:50%;background:${cor};color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">${icone}</div>
+          <div style="flex:1">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap"><div style="font-size:13px;font-weight:600">${esc(c.item)}</div><span style="font-size:10px;font-weight:700;color:${cor};white-space:nowrap">${lbl}${c.critico&&c.status!=="ok"?" · multa":""}</span></div>
+            <div style="font-size:11px;color:${C.cinza};margin-top:2px">${esc(c.lei)}</div>
+            ${c.obs?`<div style="font-size:11px;color:${cor};margin-top:4px;line-height:1.5">${esc(c.obs)}</div>`:""}
+          </div>
+        </div>`;
+      }).join("")}
+    </div>
+    <div style="background:var(--ambar-claro);border:1px solid rgba(239,159,39,.25);border-radius:10px;padding:11px 14px;font-size:11px;color:var(--ambar-esc);line-height:1.6;margin-top:12px"><strong>Nota:</strong> este checklist é uma triagem automática baseada nos dados informados e não substitui a análise de um profissional habilitado. Requisitos variam conforme município, porte e atividade.</div>`;
+  }
+
+  if (aba==="acoes") {
+    const ac = a.acoes || [];
+    return `
+    <div class="cards">
+      ${cardHTML("Críticas", ac.filter(x=>x.prioridade==="Crítica").length, null, C.verm)}
+      ${cardHTML("Alta prioridade", ac.filter(x=>x.prioridade==="Alta").length, null, C.ambar)}
+      ${cardHTML("Média prioridade", ac.filter(x=>x.prioridade==="Média").length, null, C.azul)}
+      ${cardHTML("Total de ações", ac.length, null)}
+    </div>
+    <div style="font-size:11px;color:${C.cinza};margin-bottom:12px;line-height:1.5">Ordenado por prioridade. Cada ação traz impacto, investimento e retorno — o roteiro para transformar o diagnóstico em resultado.</div>
+    ${ac.map((x,i)=>`<div style="background:#fff;border:1px solid var(--borda);border-left:3px solid ${PRIORIDADE_COR[x.prioridade]||C.cinzaClaro};border-radius:10px;padding:13px 16px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px;margin-bottom:9px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span style="font-size:15px;font-weight:800;color:${PRIORIDADE_COR[x.prioridade]};width:20px">${i+1}</span><span class="tag ${PRIORIDADE_TAG[x.prioridade]||"op"}">${x.prioridade}</span><span style="font-size:13px;font-weight:700">${esc(x.acao)}</span></div>
+        <span style="font-size:11px;color:${C.cinzaClaro};font-weight:600;white-space:nowrap">⏱ ${esc(x.prazo)}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <div><div style="font-size:9px;font-weight:700;color:#ccc;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">Impacto</div><div style="font-size:12px;color:#555;line-height:1.4">${esc(x.impacto)}</div></div>
+        <div><div style="font-size:9px;font-weight:700;color:#ccc;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">Investimento</div><div style="font-size:12px;color:#555;line-height:1.4">${esc(x.custo)}</div></div>
+        <div><div style="font-size:9px;font-weight:700;color:#ccc;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px">Retorno</div><div style="font-size:12px;color:${x.retorno?C.verdeEsc:"#999"};line-height:1.4;font-weight:${x.retorno?600:400}">${esc(x.retorno||"Conformidade / redução de risco")}</div></div>
+      </div>
+    </div>`).join("")}`;
+  }
+
+  if (aba==="documentos") {
+    const docs = cx.documentos;
+    return `
+    <div class="cards">
+      ${cardHTML("Documentos", docs.length, "monitorados")}
+      ${cardHTML("Vencendo", docs.filter(x=>x.dias!=null&&x.dias>=0&&x.dias<=90).length, "próximos 90 dias", C.ambar)}
+      ${cardHTML("Vencidos", docs.filter(x=>x.dias!=null&&x.dias<0).length, "ação imediata", C.verm)}
+      ${cardHTML("Pendentes", docs.filter(x=>x.status==="pendente").length, "a emitir", C.azul)}
+    </div>
+    <div class="box" style="padding:0;overflow:hidden">
+      <div style="padding:12px 16px;border-bottom:1px solid #f0f0ec;font-size:13px;font-weight:700">Gestão de documentos e prazos <span style="font-size:11px;font-weight:400;color:${C.cinzaClaro};margin-left:8px">licenças, manifestos e obrigações com validade</span></div>
+      ${docs.map((doc,i)=>{
+        const cor = doc.status==="pendente"?C.azul:doc.dias==null?C.cinza:doc.dias<0?C.verm:doc.dias<=90?C.ambar:C.verde;
+        const dir = doc.status==="pendente"?`<span style="font-size:11px;font-weight:700;color:${C.azul}">A emitir</span>`
+          :doc.dias==null?`<span style="font-size:11px;color:${C.cinzaClaro}">Sem prazo</span>`
+          :`<div style="font-size:12px;font-weight:700;color:${cor}">${doc.dias<0?`Vencido há ${Math.abs(doc.dias)}d`:`${doc.dias} dias`}</div><div style="font-size:10px;color:${C.cinzaClaro}">${fmtData(doc.vencimento)}</div>`;
+        return `<div style="display:flex;gap:12px;align-items:center;padding:12px 16px;${i<docs.length-1?"border-bottom:.5px solid #f5f5f2":""}">
+          <div style="width:8px;height:8px;border-radius:50%;background:${cor};flex-shrink:0"></div>
+          <div style="flex:1"><div style="font-size:13px;font-weight:600">${esc(doc.nome)}</div><div style="font-size:11px;color:${C.cinza};margin-top:1px">${esc(doc.tipo)}</div></div>
+          <div style="text-align:right">${dir}</div>
+        </div>`;
+      }).join("")}
+    </div>
+    <div style="background:var(--azul-claro);border:1px solid rgba(55,138,221,.2);border-radius:10px;padding:11px 14px;font-size:11px;color:var(--azul-esc);line-height:1.6;margin-top:12px"><strong>Valor recorrente:</strong> no monitoramento contínuo, a plataforma alerta antes de cada vencimento — evitando multas e perda de licenças. Este é o gancho da mensalidade.</div>`;
+  }
+
+  if (aba==="monitoramento") {
+    if (cx.hist.length<2) {
+      return `<div class="box" style="padding:40px 24px;text-align:center">
+        <div style="font-size:30px;opacity:.25;margin-bottom:10px">📈</div>
+        <div style="font-size:15px;font-weight:700;margin-bottom:6px">Monitoramento contínuo</div>
+        <div style="font-size:12px;color:${C.cinza};line-height:1.6;max-width:420px;margin:0 auto">Este é o produto recorrente. A cada diagnóstico salvo desta empresa, a evolução do score, das emissões e da conformidade aparece aqui — transformando o diagnóstico pontual em acompanhamento mensal.${cx.hist.length===1?`<div style="margin-top:10px;color:${C.verde};font-weight:600">1 diagnóstico salvo. Salve um novo mais adiante para ver a evolução.</div>`:""}</div>
+      </div>`;
+    }
+    return `
+    <div class="cards">
+      ${cardHTML("Score atual", a.scoreTotal, "vs. anterior", sc, cx.trendScore)}
+      ${cardHTML("Diagnósticos", cx.hist.length, "no histórico")}
+      ${cardHTML("Carbono", a.co2Total, "tCO₂e/ano", C.verm, cx.anterior?cx.anterior.co2Total-a.co2Total:null)}
+      ${cardHTML("Conformidade", cx.conformidadePct+"%", "requisitos", C.verde, cx.anterior?cx.conformidadePct-(cx.anterior.conformidadePct||0):null)}
+    </div>
+    <div class="box" style="margin-bottom:12px"><div class="sec-label">Evolução do score ESG</div><div style="position:relative;height:200px"><canvas id="chartEvolucao"></canvas></div></div>
+    <div class="box" style="padding:0;overflow:hidden">
+      <div style="padding:10px 16px;border-bottom:1px solid #f0f0ec;font-size:12px;font-weight:700">Linha do tempo</div>
+      ${[...cx.hist].reverse().map((h,i)=>`<div style="display:flex;gap:12px;align-items:center;padding:10px 16px;${i<cx.hist.length-1?"border-bottom:.5px solid #f5f5f2":""}"><div style="font-size:11px;color:${C.cinza};width:90px;flex-shrink:0">${fmtData(h.data)}</div><div style="flex:1;display:flex;gap:14px;flex-wrap:wrap;font-size:12px"><span>Score: <strong style="color:${scoreColor(h.scoreTotal)}">${h.scoreTotal}</strong></span><span style="color:#888">E:${h.scoreE} S:${h.scoreS} G:${h.scoreG}</span><span style="color:#888">${h.co2Total} tCO₂e</span></div></div>`).join("")}
+    </div>`;
+  }
+
+  if (aba==="relatorio") {
+    const rt = STATE.relatorioTipo;
+    let corpo;
+    if (STATE.relatorioGerando) corpo = `<div style="display:flex;flex-direction:column;align-items:center;padding:36px 0;gap:12px;color:${C.cinzaClaro};font-size:13px"><div class="spin-sm"></div>IA redigindo ${rt==="cliente"?"declaração de conformidade":"relatório executivo"}...</div>`;
+    else if (STATE.relatorio) corpo = `<div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #f0f0ec;flex-wrap:wrap;gap:8px"><div style="font-size:14px;font-weight:700">${rt==="cliente"?"Declaração de conformidade ESG":"Relatório ESG executivo"}</div><button class="btn-dark" style="border-color:var(--borda);background:#fafaf8;color:${C.cinza}" onclick="copiarRelatorio()">⧉ Copiar</button></div><div style="font-size:13px;line-height:1.9;color:#333">${STATE.relatorio.split("\n\n").filter(p=>p.trim()).map(p=>`<p style="margin-bottom:12px">${esc(p.trim())}</p>`).join("")}</div></div>`;
+    else corpo = `<div style="display:flex;flex-direction:column;align-items:center;padding:36px 0;gap:10px;color:#ccc;font-size:13px;text-align:center"><div style="font-size:26px;opacity:.3">✦</div><div>Escolha um tipo de relatório acima para gerar com IA</div></div>`;
+    return `
+    <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <div style="flex:1;min-width:220px;background:#fff;border:1px solid ${rt==="executivo"?C.verde:"var(--borda)"};border-radius:12px;padding:16px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px">Relatório executivo</div>
+        <div style="font-size:11px;color:${C.cinza};line-height:1.5;margin-bottom:10px">Análise interna completa por pilar, riscos e próximos passos. Para uso da consultoria/gestão.</div>
+        <button class="btn-primary" style="width:auto;padding:7px 14px;font-size:12px;font-weight:700" onclick="fazerRelatorio('executivo')">✦ Gerar</button>
+      </div>
+      <div style="flex:1;min-width:220px;background:#fff;border:1px solid ${rt==="cliente"?C.azul:"var(--borda)"};border-radius:12px;padding:16px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px">Declaração para o cliente ⭐</div>
+        <div style="font-size:11px;color:${C.cinza};line-height:1.5;margin-bottom:10px">Documento que a empresa apresenta ao comprador que exige ESG dela. ${BENCHMARK.geral.exigemFornecedor}% cobram ESG de fornecedores.</div>
+        <button class="btn-primary" style="width:auto;padding:7px 14px;font-size:12px;font-weight:700;background:${C.azul}" onclick="fazerRelatorio('cliente')">✦ Gerar declaração</button>
+      </div>
+    </div>
+    <div class="box" style="min-height:200px">${corpo}</div>`;
+  }
+  return "";
+}
+
+// ─── CHARTS ──────────────────────────────────────────────────────────────────
+let _charts = {};
+function renderCharts(aba, a, cx) {
+  if (typeof Chart==="undefined") return;
+  const mk = (id, config) => {
+    const el = document.getElementById(id); if (!el) return;
+    if (_charts[id]) _charts[id].destroy();
+    _charts[id] = new Chart(el, config);
+  };
+  if (aba==="carbono") {
+    mk("chartEscopo", { type:"bar", data:{ labels:["Escopo 1","Escopo 2"], datasets:[{ data:[a.co2Escopo1,a.co2Escopo2], backgroundColor:["#E24B4A","#EF9F27"], borderRadius:6, borderSkipped:false }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:v=>` ${v.raw} tCO₂e`}} }, scales:{ x:{grid:{display:false}}, y:{grid:{color:"#f5f5f2"}} } } });
+    const t = a.co2Total, meta = a.meta2030||Math.round(t*.65);
+    mk("chartTraj", { type:"bar", data:{ labels:["Atual","2027*","2028*","2030*"], datasets:[{ data:[t,Math.round(t*.88),Math.round(t*.77),meta], backgroundColor:["#E24B4A","#5DCAA5","#2DB98A","#1D9E75"], borderRadius:4, borderSkipped:false }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:v=>` ${v.raw} tCO₂e`}}}, scales:{x:{grid:{display:false}},y:{grid:{color:"#f5f5f2"}}} } });
+  }
+  if (aba==="monitoramento" && cx.hist.length>=2) {
+    mk("chartEvolucao", { type:"line", data:{ labels:cx.hist.map(h=>fmtData(h.data)), datasets:[
+      { label:"Score total", data:cx.hist.map(h=>h.scoreTotal), borderColor:"#1D9E75", backgroundColor:"rgba(29,158,117,.12)", tension:.3, fill:true, borderWidth:2 },
+      { label:"Ambiental", data:cx.hist.map(h=>h.scoreE), borderColor:"#1D9E75", borderDash:[4,4], tension:.3, borderWidth:1, pointRadius:2 },
+      { label:"Social", data:cx.hist.map(h=>h.scoreS), borderColor:"#378ADD", borderDash:[4,4], tension:.3, borderWidth:1, pointRadius:2 },
+      { label:"Governança", data:cx.hist.map(h=>h.scoreG), borderColor:"#7F77DD", borderDash:[4,4], tension:.3, borderWidth:1, pointRadius:2 },
+    ]}, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:"bottom",labels:{boxWidth:10,font:{size:10}}}}, scales:{y:{min:0,max:100,grid:{color:"#f5f5f2"}},x:{grid:{display:false}}} } });
+  }
+}
+
+// ─── AÇÕES ───────────────────────────────────────────────────────────────────
+function salvarDiag() {
+  const d = STATE.dados, a = STATE.analise, cx = ctxCalc();
+  DB.save({ nome:d.nome, setor:d.setor, cidade:d.cidade, data:hoje(), scoreTotal:a.scoreTotal, scoreE:a.scoreE, scoreS:a.scoreS, scoreG:a.scoreG, co2Total:a.co2Total, conformidadePct:cx.conformidadePct });
+  const btn = document.getElementById("btn-salvar");
+  if (btn) { btn.textContent="✓ Salvo"; btn.style.background=C.verde; btn.style.color="#fff"; setTimeout(()=>{ btn.textContent="⬇ Salvar"; btn.style.background="#2a2a2a"; btn.style.color="#ccc"; }, 2500); }
+}
+function novoCliente() { STATE.dados=null; STATE.analise=null; STATE.aba="overview"; STATE.relatorio=""; STATE.residuos=[0,1]; STATE.nextId=2; setView("form"); }
+
+async function fazerRelatorio(tipo) {
+  STATE.relatorioTipo=tipo; STATE.relatorio=""; STATE.relatorioGerando=true; renderDash();
+  const cx = ctxCalc();
+  try { STATE.relatorio = await gerarRelatorioIA(STATE.dados, STATE.analise, tipo, cx); }
+  catch(e) { STATE.relatorio = "Erro: "+e.message; }
+  STATE.relatorioGerando=false; renderDash();
+}
+function copiarRelatorio() { navigator.clipboard?.writeText(STATE.relatorio); }
+
+// ─── MODAL DE HISTÓRICO ──────────────────────────────────────────────────────
+function abrirHistorico() {
+  const hist = DB.getAll();
+  const porEmp = {};
+  hist.forEach(h => { const k=slug(h.nome); if (!porEmp[k]||h.data>porEmp[k].data) porEmp[k]=h; });
+  const emps = Object.values(porEmp).sort((a,b)=>b.data.localeCompare(a.data));
+  const modal = document.createElement("div");
+  modal.className = "modal-bg"; modal.id = "modal-hist";
+  modal.onclick = (e) => { if (e.target===modal) modal.remove(); };
+  modal.innerHTML = `<div class="modal">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--borda);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff">
+      <div style="font-size:15px;font-weight:700">Clientes salvos</div>
+      <button style="font-size:18px;background:transparent;border:none;cursor:pointer;color:${C.cinza}" onclick="document.getElementById('modal-hist').remove()">✕</button>
+    </div>
+    <div style="padding:16px">
+      ${emps.length===0 ? `<div style="text-align:center;padding:30px;color:${C.cinzaClaro};font-size:13px">Nenhum cliente salvo ainda.</div>`
+      : emps.map(h=>{
+        const n = hist.filter(x=>slug(x.nome)===slug(h.nome)).length;
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border:1px solid var(--borda);border-radius:10px;margin-bottom:8px;background:#fafaf8">
+          <div><div style="font-size:13px;font-weight:700">${esc(h.nome)}</div><div style="font-size:11px;color:${C.cinza};margin-top:2px">${esc(h.cidade||"—")} · último: ${fmtData(h.data)} · ${n} diagnóstico${n>1?"s":""}</div></div>
+          <div style="text-align:right"><div style="font-size:20px;font-weight:800;color:${scoreColor(h.scoreTotal)}">${h.scoreTotal}</div><div style="font-size:9px;color:${C.cinzaClaro}">/100</div></div>
+        </div>`;
+      }).join("")}
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+}
+
+// ─── ROTEADOR ────────────────────────────────────────────────────────────────
+function render() {
+  if (STATE.view==="form") renderForm();
+  else if (STATE.view==="loading") renderLoading();
+  else if (STATE.view==="dash") renderDash();
+}
+
+// Inicialização
+render();
+</script>
+</body>
+</html>
